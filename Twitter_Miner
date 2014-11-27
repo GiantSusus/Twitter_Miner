@@ -174,6 +174,40 @@ decorate_with_id(B) ->
     _ -> {invalid_tweet, B}
   end.
 
+%% [{[{<<"t">>,<<"hej">>}, {<<"i">>,""}]}, {[{<<"t">>,<<"hejda">>},{<<"i">>,""}]}]
+fix_hashtag([]) -> [];
+fix_hashtag([{[{_, Tag}, _]} | T]) -> 
+  case Tag of 
+    hashtags_not_found -> hashtags_not_found;
+    [] -> hashtags_not_found;
+    _ -> [binary_to_list(Tag)|fix_hashtag(T)]
+
+  end.
+
+%% <<"Mon Sep 20 05:31:30 +0000 2010">>
+fix_timestamp(TimeStamp) -> 
+  Year = string:substr(TimeStamp, 27, 4),
+  Year1 = list_to_integer(Year),
+  Month = case string:substr(TimeStamp, 5, 3) of
+    "Jan" -> 1;
+    "Feb" -> 2;
+    "Mar" -> 3;
+    "Apr" -> 4;
+    "May" -> 5;
+    "Jun" -> 6;
+    "Jul" -> 7;
+    "Aug" -> 8;
+    "Sep" -> 9;
+    "Oct" -> 10;
+    "Nov" -> 11;
+    "Dec" -> 12
+  end,
+  Day = string:substr(TimeStamp, 9, 2),
+  Day1 = list_to_integer(Day),
+  Stamp = {Year1, Month, Day1}. 
+
+
+% Figure out which created_at is correct.
 filter(B) -> 
   case jiffy:decode(B) of
     {L} ->
@@ -182,34 +216,47 @@ filter(B) ->
           % Getting ID, TimeStamp, Language
           {found, ID} = extract(<<"id">>, L), 
           {found, TimeStamp} = extract(<<"created_at">>, L), 
-          {found, Language} = extract(<<"lang">>, L),
+          {found, Language} = extract(<<"lang">>, L);
           %riakc_pb_socket:put(Bucket, Key, Value);
-          io:format("Date: ~p~n", [TimeStamp]);
+          %io:format("Date: ~p~n", [TimeStamp]);
         not_found -> 
           ID = id_not_found, 
-          TimeStamp = ts_not_found, 
+          TimeStamp = timestamp_not_found, 
           Language = lang_not_found
       end,
 
       % Getting location
       case extract(<<"user">>, L) of % Id
-      {found, {TU}} -> 
-        {found, Location} = extract(<<"location">>, TU);
-        %io:format("Location: ~p~n", [Location]);
-      not_found -> Location = location_not_found
+        {found, {TU}} -> 
+         {found, Location} = extract(<<"location">>, TU);
+         %io:format("Location: ~p~n", [Location]);
+        not_found -> Location = location_not_found
       end,
 
-      % Getting hashtags
-      case extract(<<"entities">>, L) of % Id
-      {found, {TE}} -> 
-        {found, Hashtags} = extract(<<"hashtags">>, TE);
-        %io:format("Hashtags: ~p~n", [Hashtags]);
-      not_found -> Hashtags = hash_not_found
-      
+      case extract(<<"user">>, L) of
+        {found, {User}} ->
+          case extract(<<"created_at">>, User) of
+            {found, Created} -> TimeStamp2 = fix_timestamp(binary_to_list(Created)); %io:format("Created: ~p~n", [TimeStamp2]);
+            not_found -> TimeStamp2 = timestamp2_not_found
+          end;
+        not_found -> TimeStamp2 = timestamp2_not_found
+      end,
+
+      % Getting hashtags, try and use fix_hashtag()
+      case extract(<<"entities">>, L) of 
+        {found, {TE}} -> 
+            case extract(<<"hashtags">>, TE) of
+              {found, Tags} -> Hashtags = fix_hashtag(Tags);
+              not_found -> Hashtags = hashtags_not_found
+            end;
+        not_found -> Hashtags = hashtags_not_found
       end
+     
     end,
-    Tweet = [{ID}, {TimeStamp}],% {TimeStamps, Location, Language, Hashtags}
-    io:format("Tweet: ~p~n", [Tweet]), Tweet.
+    [{Hashtags}].
+    %[{ID}, {TimeStamp2}, {not_ok, Hashtags}].% {TimeStamps, Location, Language, Hashtags}
+
+    %io:format("Tweet: ~p~n", [Tweet]), Tweet.
  
 my_print(T) -> %% ~p~n, [L]
   case T of
@@ -224,36 +271,48 @@ my_print(T) -> %% ~p~n, [L]
           % Getting ID, TimeStamp, Language
           {found, ID} = extract(<<"id">>, L), 
           {found, TimeStamp} = extract(<<"created_at">>, L),
-          io:format("Date: ~p~n", [TimeStamp]),
+          %io:format("Date: ~p~n", [TimeStamp]),
           {found, Language} = extract(<<"lang">>, L);
-          %riakc_pb_socket:put(Bucket, Key, Value);
         not_found -> ID = id_not_found, TimeStamp = ts_not_found, Language = lang_not_found
       end,
 
       % Getting location
-      case extract(<<"user">>, L) of % Id
-      {found, {TU}} -> 
-        {found, Location} = extract(<<"location">>, TU);
-        %io:format("Location: ~p~n", [Location]);
-      not_found -> Location = location_not_found
+      case extract(<<"user">>, L) of 
+        {found, {TU}} -> 
+          {found, Location} = extract(<<"location">>, TU);
+          %io:format("Location: ~p~n", [Location]),
+        not_found -> Location = location_not_found
+      end,
+
+      case extract(<<"user">>, L) of
+        {found, {User}} ->
+          case extract(<<"created_at">>, User) of
+            {found, Created} -> TimeStamp2 = fix_timestamp(binary_to_list(Created)), io:format("Created: ~p~n", [TimeStamp2]);
+            not_found -> TimeStamp2 = timestamp2_not_found
+          end;
+        not_found -> TimeStamp2 = timestamp2_not_found
       end,
 
       % Getting hashtags
-      case extract(<<"entities">>, L) of % Id
-      {found, {TE}} -> 
-        {found, Hashtags} = extract(<<"hashtags">>, TE);
-        %io:format("Hashtags: ~p~n", [Hashtags]);
-      not_found -> Hashtags = hash_not_found
-      
-      
+      %{found, Tag} = extract(<<"text">>, Hashtags);
+      %not_found -> Hashtags = hash_not_found;
+      case extract(<<"entities">>, L) of 
+        {found, {TE}} -> 
+            case extract(<<"hashtags">>, TE) of
+              {found, Tags} -> Hashtags = fix_hashtag(Tags);
+              not_found -> Hashtags = hashtags_not_found
+            end;
+        not_found -> Hashtags = hashtags_not_found
 
+     
           %case extract(<<"delete">>, L) of
           %  {found, _} -> io:format("deleted: ~p~n", [L]);
           %  not_found -> io:format("~s~n", [B])
           %end
-      end;
+    end,
     %Tweet = {{id, ID}, {timestamp, TimeStamp}, {lang, Language}, {loc, Location}, {hashtags, Hashtags}};
-    %io:format("Info: ~p~n", [Tweet]);
+    io:format("Hashtags: ~p~n", [Hashtags]);
+
     {invalid_tweet, B} -> io:format("failed to parse: ~s~n", [B])
   end.
 
