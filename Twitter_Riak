@@ -26,7 +26,7 @@ twitter_example() ->
   Keys = twitterminer_source:get_account_keys(account1),
 
   %RHP = get_riak_hostport(riak1),
-  {ok, R} = riakc_pb_socket:start("127.0.0.1", 10017),
+  {ok, R} = riakc_pb_socket:start("129.16.155.22", 8087),
   % {ok, R} = riakc_pb_socket:start_link(RHP#hostport.host, RHP#hostport.port)
 
   % Run our pipeline
@@ -37,7 +37,7 @@ twitter_example() ->
   T = spawn_link(fun () ->
         receive
           cancel -> ok
-        after 10000 -> % Sleep fo 60 s
+        after 60000 -> % Sleep fo 60 s
             twitterminer_pipeline:terminate(P)
         end
     end),
@@ -64,30 +64,31 @@ twitter_save_pipeline(R, URL, Keys) ->
     Prod].
 
 % We save only objects that have ids.
-save_tweet(_, {_,_, hashtag_not_found, _}) -> empty_tag_not_sent;
+%% Save tweet with updated secondary index
 save_tweet(R, {parsed_tweet, _L, B, {id, I}}) ->
-  X = twitterminer_source:filter(B),
-  io:format("B is: ~p~n", [X]),
+  Timestamp = timestampYMD(),
+  Bucket = <<"Double_Secondary">>,
+  Key = list_to_binary(integer_to_list(I)),
+  Hashtag = twitterminer_source:filter(B),
+  case Hashtag of
+    [] -> empty_tag_not_sent;
+    _ -> Value = {I, Timestamp, Hashtag},  % {I, {}, X}
+    io:format("Value: ~p~n", [Value]),
+    Obj = riakc_obj:new(Bucket, Key, Value),
+    MetaData = riakc_obj:get_update_metadata(Obj),
+    ObjSecondary = riakc_obj:set_secondary_index(MetaData, 
+      [{{binary_index, "Timestamp"}, [Timestamp]},
+      {{binary_index, "Hashtags"}, [Hashtag]}]),
+    NewObj = riakc_obj:update_metadata(Obj, ObjSecondary),
+    riakc_pb_socket:put(R, NewObj)
+  end;
 
-
-  Obj = riakc_obj:new(<<"Wednesday">>, list_to_binary(integer_to_list(I)),X),
-
-  riakc_pb_socket:put(R, Obj, [{w, 0}]);
 save_tweet(_, _) -> ok.
 
-%% Save tweet with updated secondary index
-%% Not yet tested, but seems to work while using it with dummy data
-%save_tweet(R, {parsed_tweet, _L, B, {id, I}}) ->
-%  Timestamp = timestamp(),
-%  X = twitterminer_source:filter(B),
-%  io:format("B is: ~p~n", [X]),
-%
-%  Obj = riakc_obj:new(<<"tweets">>, list_to_binary(integer_to_list(I)), B),
-%  MetaData = riakc_obj:get_update_metadata(Obj),
-%  ObjSecondary = riakc_obj:set_secondary_index(MetaData, 
-%    [{{binary_index, "Timestamp"}, [Timestamp]}]),
-%  NewObj = riakc_obj:update_metadata(Obj, ObjSecondary),
-%  riakc_pb_socket:put(R, NewObj);
-
-%save_tweet(_, _) -> ok.
+%% Timetamp in year-month-day format
+timestampYMD() ->
+  {{Year, Month, Day}, _} = calendar:local_time(),
+    Format = "~4.10.0B-~2.10.0B-~2.10.0B",
+    IsoFormat = io_lib:format(Format, [Year, Month, Day]),
+    list_to_binary(IsoFormat).
 
