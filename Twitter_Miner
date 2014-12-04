@@ -103,7 +103,7 @@ receive_tweets({init, URL, Keys}) ->
   % I have never managed to receive a stall warning, but it would
   % be a good idea to handle them somehow (or at least log).
   SignedParams = oauth:sign("GET", URL, [{delimited, length},
-    {stall_warnings, true}], Consumer, AccessToken, AccessTokenSecret),
+    {stall_warnings, true}, {language, "en"}], Consumer, AccessToken, AccessTokenSecret),
   %% {track, "word"}
   %% {lang, "sv"}
 
@@ -174,7 +174,7 @@ decorate_with_id(B) ->
     _ -> {invalid_tweet, B}
   end.
 
-%% [{[{<<"t">>,<<"hej">>}, {<<"i">>,""}]}, {[{<<"t">>,<<"hejda">>},{<<"i">>,""}]}]
+%% [{[{<<"t">>,<<"hej">>}, {<<"i">>,"[]"}]}, {[{<<"t">>,<<"hejda">>},{<<"i">>,""}]}]
 fix_hashtag([]) -> [];
 fix_hashtag([{[{_, Tag}, _]} | T]) -> 
   case Tag of 
@@ -183,29 +183,6 @@ fix_hashtag([{[{_, Tag}, _]} | T]) ->
     _ -> [binary_to_list(Tag)|fix_hashtag(T)]
 
   end.
-
-%% <<"Mon Sep 20 05:31:30 +0000 2010">>
-fix_timestamp(TimeStamp) -> 
-  Year = string:substr(TimeStamp, 27, 4),
-  Year1 = list_to_integer(Year),
-  Month = case string:substr(TimeStamp, 5, 3) of
-    "Jan" -> 1;
-    "Feb" -> 2;
-    "Mar" -> 3;
-    "Apr" -> 4;
-    "May" -> 5;
-    "Jun" -> 6;
-    "Jul" -> 7;
-    "Aug" -> 8;
-    "Sep" -> 9;
-    "Oct" -> 10;
-    "Nov" -> 11;
-    "Dec" -> 12
-  end,
-  Day = string:substr(TimeStamp, 9, 2),
-  Day1 = list_to_integer(Day),
-  Stamp = {Year1, Month, Day1}. 
-
 
 % Figure out which created_at is correct.
 filter(B) -> 
@@ -233,15 +210,6 @@ filter(B) ->
         not_found -> Location = location_not_found
       end,
 
-      case extract(<<"user">>, L) of
-        {found, {User}} ->
-          case extract(<<"created_at">>, User) of
-            {found, Created} -> TimeStamp2 = fix_timestamp(binary_to_list(Created)); %io:format("Created: ~p~n", [TimeStamp2]);
-            not_found -> TimeStamp2 = timestamp2_not_found
-          end;
-        not_found -> TimeStamp2 = timestamp2_not_found
-      end,
-
       % Getting hashtags, try and use fix_hashtag()
       case extract(<<"entities">>, L) of 
         {found, {TE}} -> 
@@ -253,7 +221,7 @@ filter(B) ->
       end
      
     end,
-    [{Hashtags}].
+    Hashtags.
     %[{ID}, {TimeStamp2}, {not_ok, Hashtags}].% {TimeStamps, Location, Language, Hashtags}
 
     %io:format("Tweet: ~p~n", [Tweet]), Tweet.
@@ -282,15 +250,6 @@ my_print(T) -> %% ~p~n, [L]
           {found, Location} = extract(<<"location">>, TU);
           %io:format("Location: ~p~n", [Location]),
         not_found -> Location = location_not_found
-      end,
-
-      case extract(<<"user">>, L) of
-        {found, {User}} ->
-          case extract(<<"created_at">>, User) of
-            {found, Created} -> TimeStamp2 = fix_timestamp(binary_to_list(Created)), io:format("Created: ~p~n", [TimeStamp2]);
-            not_found -> TimeStamp2 = timestamp2_not_found
-          end;
-        not_found -> TimeStamp2 = timestamp2_not_found
       end,
 
       % Getting hashtags
