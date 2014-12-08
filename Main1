@@ -1,0 +1,61 @@
+-module(main1).
+-export([start_link_handler/0, start_handler/0, stop/0, loop/0, print/0]).
+
+%% cd("C:/Users/Mackan/Desktop/SEM/Erlang").
+
+%% ----------------------------------------------
+%% Main
+%% -----------------------------------------------
+
+%% Start
+start_link_handler() ->
+	case whereis(starter) of
+    	undefined ->
+   			process_flag(trap_exit, true),
+    		register(starter, Pid = spawn_link(?MODULE, loop, [])),
+    		{ok, Pid};
+    	Pid -> 
+    		{ok, Pid}
+    end.
+
+%% Handler
+start_handler() ->
+	spawn_link(main, function, []).
+
+%% Stop 
+stop() -> 
+	case whereis(starter) of
+    	undefined ->
+      		no_server_running;
+   		Pid ->
+			Pid ! {self(), stop},
+			receive
+				{Pid, stop, Msg} -> exit(Pid, stop), io:format("Server has been ~p~n", [Msg])
+			after 5000 ->
+				timeout
+			end
+	end.
+
+%% Loop 
+loop() ->
+    receive
+    	%{restart_supervisor, Pid} -> restart() ?
+    	{'EXIT', Pid, normal} -> 
+    		Pid ! {self(), print, normal_exit};
+    	{Pid, stop} -> 
+    		Pid ! {self(), stop, stopped};
+    	{'EXIT', Pid, _} -> 
+    		Pid ! {self(), restart},
+    		start_link_handler()
+    end.
+
+print() ->
+	receive
+		{Pid, print, Msg} -> io:format("~p~n", [Msg])
+	after 5000 ->
+		timeout
+	end.
+
+%% Start -> init -> loop -> functions ?
+%% Göra två loops? 1 för handler och 1 för extractor?
+
