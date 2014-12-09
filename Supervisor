@@ -1,0 +1,93 @@
+-module(supervisor).
+-export([scheduler/0, start_link_handler/0, start/0, start_link_scheduler/0, stop/0, loop/0]).
+
+%% cd("C:/Users/Mackan/Desktop/SEM/Erlang").
+%% cd dit
+%% rebar compile
+%% erl -pa /home/erlach/riak-erlang-client/ebin/ /home/erlach/riak-erlang-client/deps/*/ebin
+
+%% ----------------------------------------------
+%% Main
+%% -----------------------------------------------
+
+%% Schedule
+scheduler() ->
+    {{_,_,_},{H, M, _}} = calendar:local_time(),
+
+    case {H,M} of 
+        {11, 00} -> twitterminer_riak:twitter_example();
+        {23, 00} -> twitterminer_riak:twitter_example();
+        {H, M} -> scheduler()
+    end.
+
+%% Start
+start() -> 
+    start_link_scheduler(),
+    start_link_handler(),
+    loop().
+
+    
+%% Handler
+start_link_handler() ->
+	case whereis(starter) of
+    	undefined ->
+   			process_flag(trap_exit, true),
+    		register(starter, Pid = spawn_link(handler, loop, [])),
+    		{ok, Pid};
+    	Pid -> 
+    		{ok, Pid}
+    end.
+
+%% Scheduler
+start_link_scheduler() ->
+	case whereis(scheduler) of
+        undefined ->
+            process_flag(trap_exit, true),
+            register(scheduler, Pid = spawn_link(?MODULE, scheduler, [])),
+            {ok, Pid};
+        Pid -> 
+            {ok, Pid}
+    end.
+
+
+%% Stop 
+stop() -> 
+	case whereis(starter) of
+    	undefined ->
+      		no_server_running;
+   		Pid ->
+			Pid ! {self(), stop},
+			receive
+				{Pid, stop, Msg} -> exit(Pid, stop), io:format("Server has been ~p~n", [Msg])
+			after 5000 ->
+				timeout
+			end
+	end.
+
+%% Loop 
+loop() ->
+    register(supervisor_loop, Pid=spawn_link(?MODULE, loop, [])),
+    receive
+    	{Pid, start, Msg} -> 
+            io:format("~p~n", [Msg]),
+    		starter ! {self(), start},
+            loop();
+        {Pid, update, Msg} ->
+            io:format("~p~n", [Msg]);
+    	{Pid, stop} -> 
+    		Pid ! {self(), stop, stopped},
+            loop();
+    	{'EXIT', Pid, _} -> 
+    		start(),
+            loop();
+        {Pid, restart_handler} ->
+            start_link_handler(),
+            loop();
+        {Pid, restart_scheduler} ->
+            start_link_scheduler(),
+            loop()
+    end.
+
+%% Start -> init -> loop -> functions ?
+%% Göra två loops? 1 för handler och 1 för extractor?
+
