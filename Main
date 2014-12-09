@@ -1,5 +1,5 @@
--module(supervisor).
--export([scheduler/0, start_link_handler/0, start/0, start_link_scheduler/0, stop/0, loop/0]).
+-module(main).
+-export([scheduler/0, start_link_handler/0, start/0, start_link_scheduler/0, stop/0, init/0, loop/0]).
 
 %% cd("C:/Users/Mackan/Desktop/SEM/Erlang").
 %% cd dit
@@ -10,23 +10,25 @@
 %% Main
 %% -----------------------------------------------
 
+%% Start
+start() -> 
+    application:ensure_all_started(twitterminer),
+    start_link_scheduler(),
+    start_link_handler(),
+    init().
+
 %% Schedule
 scheduler() ->
     {{_,_,_},{H, M, _}} = calendar:local_time(),
 
     case {H,M} of 
-        {11, 00} -> twitterminer_riak:twitter_example();
-        {23, 00} -> twitterminer_riak:twitter_example();
+        {14, 49} -> twitterminer_riak:twitter_example(),
+            scheduler();
+        {14, 53} -> twitterminer_riak:twitter_example(),
+            scheduler();
         {H, M} -> scheduler()
     end.
 
-%% Start
-start() -> 
-    start_link_scheduler(),
-    start_link_handler(),
-    loop().
-
-    
 %% Handler
 start_link_handler() ->
 	case whereis(starter) of
@@ -49,7 +51,6 @@ start_link_scheduler() ->
             {ok, Pid}
     end.
 
-
 %% Stop 
 stop() -> 
 	case whereis(starter) of
@@ -64,28 +65,37 @@ stop() ->
 			end
 	end.
 
+%% Init
+init() ->
+    Pid=spawn_link(?MODULE, loop, []),
+    register(supervisor_loop, Pid).
+
 %% Loop 
 loop() ->
-    register(supervisor_loop, Pid=spawn_link(?MODULE, loop, [])),
-    receive
-    	{Pid, start, Msg} -> 
-            io:format("~p~n", [Msg]),
-    		starter ! {self(), start},
-            loop();
-        {Pid, update, Msg} ->
-            io:format("~p~n", [Msg]);
-    	{Pid, stop} -> 
-    		Pid ! {self(), stop, stopped},
-            loop();
-    	{'EXIT', Pid, _} -> 
-    		start(),
-            loop();
-        {Pid, restart_handler} ->
-            start_link_handler(),
-            loop();
-        {Pid, restart_scheduler} ->
-            start_link_scheduler(),
-            loop()
+    case whereis(supervisor_loop) of
+        undefined -> error;
+        Pid ->
+           receive
+            	{Pid, start, Msg} -> 
+                    io:format("~p~n", [Msg]),
+            		starter ! {self(), start},
+                    loop();
+                {Pid, update, Msg} ->
+                    io:format("~p~n", [Msg]),
+                    loop();
+            	{Pid, stop} -> 
+            		Pid ! {self(), stop, stopped},
+                    loop();
+            	{'EXIT', Pid, _} -> 
+            		start(),
+                    loop();
+                {Pid, restart_handler} ->
+                    start_link_handler(),
+                    loop();
+                {Pid, restart_scheduler} ->
+                    start_link_scheduler(),
+                    loop()
+            end
     end.
 
 %% Start -> init -> loop -> functions ?
