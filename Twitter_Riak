@@ -38,7 +38,8 @@ twitter_example() ->
         receive
           cancel -> ok
         after 60000 -> % Sleep fo 60 s
-            twitterminer_pipeline:terminate(P)
+            twitterminer_pipeline:terminate(P),
+            supervisor_loop ! {self(), start, extracting_completed}
         end
     end),
 
