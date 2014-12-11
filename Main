@@ -1,14 +1,15 @@
 -module(main).
 -export([scheduler/0, start_link_handler/0, start/0, start_link_scheduler/0, stop/1, init/0, loop/0]).
 
-%% cd("C:/Users/Mackan/Desktop/SEM/Erlang").
-%% cd dit
-%% rebar compile
 %% erl -pa /home/erlach/riak-erlang-client/ebin/ /home/erlach/riak-erlang-client/deps/*/ebin
 
-%% ----------------------------------------------
+%% -----------------------------------------------------------------------
 %% Main
-%% -----------------------------------------------
+%% -----------------------------------------------------------------------
+%% Run with main:go(), will run at 2 given times each day.
+%% Will start scheduler, handler module and the supervisor_loop.
+%% Stop function will exit the given process name(registered name).
+%% -----------------------------------------------------------------------
 
 %% Start
 start() -> 
@@ -25,11 +26,11 @@ scheduler() ->
             ok
     end,
     case {H, M} of 
-        {11, 56} -> 
+        {12, 44} -> 
             twitterminer_riak:twitter_example(), 
             starter ! {self(), start}, 
             scheduler();
-        {12, 00} -> 
+        {12, 48} -> 
             twitterminer_riak:twitter_example(), 
             starter ! {self(), start}, 
             scheduler();
@@ -91,4 +92,3 @@ loop() ->
                     loop()
             end
     end.
-
