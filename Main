@@ -1,5 +1,5 @@
 -module(main).
--export([scheduler/0, start_link_handler/0, start/0, start_link_scheduler/0, stop/0, init/0, loop/0]).
+-export([scheduler/0, start_link_handler/0, start/0, start_link_scheduler/0, stop/1, init/0, loop/0]).
 
 %% cd("C:/Users/Mackan/Desktop/SEM/Erlang").
 %% cd dit
@@ -20,29 +20,36 @@ start() ->
 %% Schedule
 scheduler() ->
     {{_,_,_},{H, M, _}} = calendar:local_time(),
-
-    case {H,M} of 
-        {14, 49} -> twitterminer_riak:twitter_example(),
+    receive
+        after 10000 ->
+            ok
+    end,
+    case {H, M} of 
+        {11, 56} -> 
+            twitterminer_riak:twitter_example(), 
+            starter ! {self(), start}, 
             scheduler();
-        {14, 53} -> twitterminer_riak:twitter_example(),
+        {12, 00} -> 
+            twitterminer_riak:twitter_example(), 
+            starter ! {self(), start}, 
             scheduler();
         {H, M} -> scheduler()
     end.
 
 %% Handler
 start_link_handler() ->
-	case whereis(starter) of
-    	undefined ->
-   			process_flag(trap_exit, true),
-    		register(starter, Pid = spawn_link(handler, loop, [])),
-    		{ok, Pid};
-    	Pid -> 
-    		{ok, Pid}
+    case whereis(starter) of
+        undefined ->
+            process_flag(trap_exit, true),
+            register(starter, Pid = spawn_link(handler, loop, [])),
+            {ok, Pid};
+        Pid -> 
+            {ok, Pid}
     end.
 
 %% Scheduler
 start_link_scheduler() ->
-	case whereis(scheduler) of
+    case whereis(scheduler) of
         undefined ->
             process_flag(trap_exit, true),
             register(scheduler, Pid = spawn_link(?MODULE, scheduler, [])),
@@ -52,18 +59,8 @@ start_link_scheduler() ->
     end.
 
 %% Stop 
-stop() -> 
-	case whereis(starter) of
-    	undefined ->
-      		no_server_running;
-   		Pid ->
-			Pid ! {self(), stop},
-			receive
-				{Pid, stop, Msg} -> exit(Pid, stop), io:format("Server has been ~p~n", [Msg])
-			after 5000 ->
-				timeout
-			end
-	end.
+stop(Name) -> 
+    exit(whereis(Name), stop).
 
 %% Init
 init() ->
@@ -76,18 +73,15 @@ loop() ->
         undefined -> error;
         Pid ->
            receive
-            	{Pid, start, Msg} -> 
+                {Pid, start, Msg} -> 
                     io:format("~p~n", [Msg]),
-            		starter ! {self(), start},
+                    starter ! {self(), start},
                     loop();
-                {Pid, update, Msg} ->
-                    io:format("~p~n", [Msg]),
+                {Pid, stop} -> 
+                    Pid ! {self(), stop, stopped},
                     loop();
-            	{Pid, stop} -> 
-            		Pid ! {self(), stop, stopped},
-                    loop();
-            	{'EXIT', Pid, _} -> 
-            		start(),
+                {'EXIT', Pid, _} -> 
+                    start(),
                     loop();
                 {Pid, restart_handler} ->
                     start_link_handler(),
@@ -97,7 +91,4 @@ loop() ->
                     loop()
             end
     end.
-
-%% Start -> init -> loop -> functions ?
-%% Göra två loops? 1 för handler och 1 för extractor?
 
