@@ -46,7 +46,7 @@ twitter_example() ->
   T = spawn_link(fun () ->
         receive
           cancel -> ok
-        after 10000 -> % Sleep for 60 s
+        after 60000 -> % Sleep for 60 s
             twitterminer_pipeline:terminate(P)
         end
     end),
@@ -176,6 +176,7 @@ decorate_with_id(B) ->
 
 %% [{[{<<"t">>,<<"hej">>}, {<<"i">>,"[]"}]}, {[{<<"t">>,<<"hejda">>},{<<"i">>,""}]}]
 fix_hashtag([]) -> [];
+%fix_hashtag([{[{_, <<Tag>>}, _]} | T]) -> fix_hashtag(T);
 fix_hashtag([{[{_, Tag}, _]} | T]) -> 
   case Tag of 
     hashtags_not_found -> hashtags_not_found;
@@ -258,7 +259,8 @@ my_print(T) -> %% ~p~n, [L]
       case extract(<<"entities">>, L) of 
         {found, {TE}} -> 
             case extract(<<"hashtags">>, TE) of
-              {found, Tags} -> Hashtags = fix_hashtag(Tags);
+              {found, Tags} -> Hashtags = fix_hashtag(Tags),
+              io:format("Tags: ~p~n",[Hashtags]);
               not_found -> Hashtags = hashtags_not_found
             end;
         not_found -> Hashtags = hashtags_not_found
