@@ -38,11 +38,10 @@ twitter_example() ->
         receive
           cancel -> ok
         after 60000 -> % Sleep fo 60 s
-            twitterminer_pipeline:terminate(P),
-            supervisor_loop ! {self(), start, extracting_completed}
+            twitterminer_pipeline:terminate(P)
         end
     end),
-
+  %supervisor_loop ! {self(), start, extracting_completed},
   Res = twitterminer_pipeline:join(P),
   T ! cancel,
   Res.
@@ -68,7 +67,7 @@ twitter_save_pipeline(R, URL, Keys) ->
 %% Save tweet with updated secondary index
 save_tweet(R, {parsed_tweet, _L, B, {id, I}}) ->
   Timestamp = timestampYMD(),
-  Bucket = <<"Double_Secondary">>,
+  Bucket = <<"Alpha">>,
   Key = list_to_binary(integer_to_list(I)),
   Hashtag = twitterminer_source:filter(B),
   case Hashtag of
