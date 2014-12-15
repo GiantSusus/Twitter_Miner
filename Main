@@ -26,11 +26,11 @@ scheduler() ->
             ok
     end,
     case {H, M} of 
-        {12, 44} -> 
+        {10, 48} -> 
             twitterminer_riak:twitter_example(), 
             starter ! {self(), start}, 
             scheduler();
-        {12, 48} -> 
+        {10, 58} -> 
             twitterminer_riak:twitter_example(), 
             starter ! {self(), start}, 
             scheduler();
