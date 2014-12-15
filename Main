@@ -1,5 +1,5 @@
 -module(main).
--export([scheduler/0, start_link_handler/0, start/0, start_link_scheduler/0, stop/1, init/0, loop/0]).
+-export([scheduler/0, start_link_handler/0, start/0, start_link_scheduler/0, stop_scheduler/0, init/0, loop/0]).
 
 %% erl -pa /home/erlach/riak-erlang-client/ebin/ /home/erlach/riak-erlang-client/deps/*/ebin
 
@@ -18,7 +18,7 @@ start() ->
     start_link_handler(),
     init().
 
-%% Schedule
+%% Scheduler
 scheduler() ->
     {{_,_,_},{H, M, _}} = calendar:local_time(),
     receive
@@ -26,11 +26,11 @@ scheduler() ->
             ok
     end,
     case {H, M} of 
-        {10, 48} -> 
+        {15, 48} -> 
             twitterminer_riak:twitter_example(), 
             starter ! {self(), start}, 
             scheduler();
-        {10, 58} -> 
+        {11, 25} -> 
             twitterminer_riak:twitter_example(), 
             starter ! {self(), start}, 
             scheduler();
@@ -59,9 +59,15 @@ start_link_scheduler() ->
             {ok, Pid}
     end.
 
-%% Stop 
-stop(Name) -> 
-    exit(whereis(Name), stop).
+%% Stop scheduler
+stop_scheduler() -> 
+    case whereis(scheduler) of
+        undefined -> 
+            already_stopped;
+        Pid -> 
+            true = exit(Pid, stop),
+            stopped
+    end.
 
 %% Init
 init() ->
@@ -74,21 +80,17 @@ loop() ->
         undefined -> error;
         Pid ->
            receive
-                {Pid, start, Msg} -> 
-                    io:format("~p~n", [Msg]),
-                    starter ! {self(), start},
-                    loop();
-                {Pid, stop} -> 
-                    Pid ! {self(), stop, stopped},
-                    loop();
                 {'EXIT', Pid, _} -> 
                     start(),
                     loop();
                 {Pid, restart_handler} ->
                     start_link_handler(),
                     loop();
-                {Pid, restart_scheduler} ->
+                {'EXIT', scheduler, _} ->
                     start_link_scheduler(),
+                    loop();
+                {'EXIT', handler, _} ->
+                    start_link_handler(),
                     loop()
             end
     end.
