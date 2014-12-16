@@ -6,7 +6,9 @@
 %% -----------------------------------------------------------------------
 %% Main
 %% -----------------------------------------------------------------------
-%% Run with main:go(), will run at 2 given times each day.
+%% Start erl with command below.
+%% erl -pa deps/*/ebin -pa ebin -config twitterminer
+%% Run with main:start(), will run at 2 given times each day.
 %% Will start scheduler, handler module and the supervisor_loop.
 %% Stop function will exit the given process name(registered name).
 %% -----------------------------------------------------------------------
@@ -26,11 +28,15 @@ scheduler() ->
             ok
     end,
     case {H, M} of 
-        {15, 48} -> 
+        {08, 00} -> 
             twitterminer_riak:twitter_example(), 
             starter ! {self(), start}, 
             scheduler();
-        {11, 25} -> 
+        {16, 00} -> 
+            twitterminer_riak:twitter_example(), 
+            starter ! {self(), start}, 
+            scheduler();
+        {00, 00} -> 
             twitterminer_riak:twitter_example(), 
             starter ! {self(), start}, 
             scheduler();
