@@ -14,11 +14,19 @@
 %% -----------------------------------------------------------------------
 
 %% Start
+
 start() -> 
-    application:ensure_all_started(twitterminer),
-    start_link_scheduler(),
-    start_link_handler(),
-    init().
+    case whereis(starter) of
+        undefined ->
+            process_flag(trap_exit, true),
+            register(starter, Pid = spawn_link(?MODULE, init, [])),
+            application:ensure_all_started(twitterminer),
+            start_link_scheduler(),
+            start_link_handler(),
+            {ok, Pid, "Program started"};
+        Pid ->
+            {ok, Pid, "Program already running"}
+    end.            
 
 %% Scheduler
 scheduler() ->
@@ -28,27 +36,27 @@ scheduler() ->
             ok
     end,
     case {H, M} of 
-        {08, 00} -> 
+        {15, 20} -> 
             twitterminer_riak:twitter_example(), 
-            starter ! {self(), start}, 
+            handler ! {self(), start}, 
             scheduler();
-        {16, 00} -> 
+        {15, 23} -> 
             twitterminer_riak:twitter_example(), 
-            starter ! {self(), start}, 
+            handler ! {self(), start}, 
             scheduler();
-        {00, 00} -> 
+        {14, 23} -> 
             twitterminer_riak:twitter_example(), 
-            starter ! {self(), start}, 
+            handler ! {self(), start}, 
             scheduler();
         {H, M} -> scheduler()
     end.
-
+    
 %% Handler
 start_link_handler() ->
-    case whereis(starter) of
+    case whereis(handler) of
         undefined ->
             process_flag(trap_exit, true),
-            register(starter, Pid = spawn_link(handler, loop, [])),
+            register(handler, Pid = spawn_link(handler, loop, [])),
             {ok, Pid};
         Pid -> 
             {ok, Pid}
@@ -78,25 +86,22 @@ stop_scheduler() ->
 %% Init
 init() ->
     Pid=spawn_link(?MODULE, loop, []),
-    register(supervisor_loop, Pid).
+    register(looper, Pid).
 
 %% Loop 
 loop() ->
-    case whereis(supervisor_loop) of
+    case whereis(loop) of
         undefined -> error;
         Pid ->
            receive
                 {'EXIT', Pid, _} -> 
                     start(),
                     loop();
-                {Pid, restart_handler} ->
-                    start_link_handler(),
-                    loop();
                 {'EXIT', scheduler, _} ->
                     start_link_scheduler(),
                     loop();
-                {'EXIT', handler, _} ->
-                    start_link_handler(),
+                {'EXIT', starter, _} ->
+                    start(),
                     loop()
             end
     end.
