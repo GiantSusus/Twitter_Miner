@@ -89,7 +89,7 @@ show_last_7(Pid, Bucket) ->
 	Top10 = sortList(Result),
 	io:format("Top10 last 7 days: ~p~n", [Top10]),
 	storeTop10(Top10, Key1),
-	io:format("Weekly Top 10 updated ~n").
+	io:format("Last 7 days Top 10 updated ~n").
 
 %% Show results for last 7 days revised list
 show_last_7_revised(Pid, Bucket) -> 
