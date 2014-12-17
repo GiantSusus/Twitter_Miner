@@ -1,9 +1,6 @@
 Twitter_Miner
 =============
-%% ---------------------
-
-%% Main
-%% ---------------------
+%% ---------------------                                                                                            %% Main                                                                                                             %% ---------------------
 
 Start erl with: erl -pa deps/*/ebin -pa ebin -config twitterminer
 
